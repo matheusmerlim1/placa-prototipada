@@ -1,0 +1,27 @@
+# Credenciais e segredos
+.env
+*.env
+secrets.json
+config.local.js
+token.txt
+
+# Documentos pessoais e arquivos gerados pelo app (PDF, Gerber, projetos salvos)
+*.pdf
+*.zip
+
+# Dependências
+node_modules/
+vendor/
+
+# Arquivos de sistema
+.DS_Store
+Thumbs.db
+
+# Guias locais
+githubGuia.md
+
+# Build e relatórios
+dist/
+build/
+.cache/
+coverage/

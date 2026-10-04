@@ -1,0 +1,16 @@
+{
+  "name": "placa-prototipada",
+  "version": "2.0.0",
+  "description": "Desenha placa de circuito impresso no navegador: componentes com medidas de datasheet, ligações e trilhas sem cruzamento em 1 ou 2 camadas, com PDF 1:1 e Gerber para fabricação",
+  "private": true,
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch"
+  },
+  "jest": {
+    "testEnvironment": "node"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}
