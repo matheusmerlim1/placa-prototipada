@@ -254,6 +254,9 @@ kbd {
   display: flex; justify-content: space-between; gap: 8px; pointer-events: none; flex-wrap: wrap;
 }
 .tool-group { display: flex; gap: 4px; pointer-events: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 3px; box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+/* tela estreita: as cinco camadas não cabem; a barra rola dentro da largura em vez de alargar a página */
+.tool-group { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.tool-group .chip { flex: none; }
 .chip { background: transparent; color: var(--muted); border: 0; padding: 4px 9px; font-weight: 500; font-size: 12.5px; display: flex; align-items: center; gap: 6px; }
 .chip.on { color: var(--text); background: var(--surface); }
 .chip:not(.on) .sw { opacity: .25; }
