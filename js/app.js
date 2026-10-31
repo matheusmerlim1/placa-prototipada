@@ -354,6 +354,7 @@
 
   // ------------------------------------------------------------------ render
   function render() {
+    const foco = focoAtual(); // a11y: a lista é refeita por innerHTML; o foco volta para o mesmo botão
     derive();
     if (S.route && !routeValid()) S.route = null;
     renderSteps();
@@ -363,6 +364,7 @@
     renderRoutePanel();
     renderBoard();
     renderStatus();
+    renderA11y(foco); // a11y
   }
 
   function renderSteps() {
@@ -384,7 +386,7 @@
       const param = l.param
         ? `<select data-param="${l.id}" aria-label="${esc(l.param.label)}" title="${esc(l.param.label)}">${l.param.options.map(o => `<option value="${o}"${o === l.param.def ? ' selected' : ''}>${String(o).replace('.', ',')}</option>`).join('')}</select>`
         : '<span></span>';
-      html += `<div class="lib-item" title="${esc(l.src || '')}"><div><b>${esc(l.name)}</b><small>${esc(l.hint)}</small></div>${param}<button type="button" data-add="${l.id}" title="Adicionar à placa">+</button></div>`;
+      html += `<div class="lib-item" title="${esc(l.src || '')}"><div><b>${esc(l.name)}</b><small>${esc(l.hint)}</small></div>${param}<button type="button" data-add="${l.id}" title="Adicionar à placa" aria-label="Adicionar ${esc(l.name)} à placa">+</button></div>`;
     }
     $('#lib-list').innerHTML = html || '<p class="empty">Nada encontrado.</p>';
   }
@@ -404,8 +406,8 @@
           <span class="ref">${esc(c.ref)}</span>
           <span class="nm" title="${esc(nm)}">${esc(nm)}</span>
           <input type="text" data-value="${c.id}" value="${esc(c.value || '')}" placeholder="valor" aria-label="Valor de ${esc(c.ref)}">
-          <button type="button" class="mini" data-rot="${c.id}" title="Girar 90° (R)">⟳</button>
-          <button type="button" class="mini del" data-del="${c.id}" title="Remover (Del)">×</button>
+          <button type="button" class="mini" data-rot="${c.id}" title="Girar 90° (R)" aria-label="Girar ${esc(c.ref)} 90°">⟳</button>
+          <button type="button" class="mini del" data-del="${c.id}" title="Remover (Del)" aria-label="Remover ${esc(c.ref)}">×</button>
         </div>`;
       }).join('');
     }
@@ -455,7 +457,7 @@
       }
       const chips = n.conns.map(ci => {
         const cn = S.connections[ci];
-        return `<span class="conn-chip">${esc(D.pins.get(cn.a).label)} — ${esc(D.pins.get(cn.b).label)}<button type="button" data-delconn="${ci}" title="Desfazer ligação" aria-label="Desfazer ligação">×</button></span>`;
+        return `<span class="conn-chip">${esc(D.pins.get(cn.a).label)} — ${esc(D.pins.get(cn.b).label)}<button type="button" data-delconn="${ci}" title="Desfazer ligação" aria-label="Desfazer ligação ${esc(D.pins.get(cn.a).label)} — ${esc(D.pins.get(cn.b).label)}">×</button></span>`;
       }).join('');
       return `<div class="net" data-net="${n.index}">
         <div class="net-head"><i class="dot" style="background:${n.color}"></i>
@@ -1436,10 +1438,68 @@
     flash('Arquivos de fabricação gerados (Gerber + furação). Envie o .zip inteiro no site do fabricante.');
   }
 
+  // ----------------------------------------------------- acessibilidade (teclado e leitor de tela)
+  // chave do controle com foco, para devolvê-lo depois que a lista for refeita
+  function focoAtual() {
+    const el = document.activeElement;
+    if (!el || !el.dataset) return null;
+    for (const k of ['rot', 'del', 'delconn']) if (el.dataset[k] !== undefined) return `[data-${k}="${el.dataset[k]}"]`;
+    return null;
+  }
+  function renderA11y(foco) {
+    // abas: só a ativa entra na tabulação; as outras se alcançam pelas setas
+    $$('.steps button').forEach(b => { b.tabIndex = b.dataset.step === ui.step ? 0 : -1; });
+    const mode = S.settings.layers === 2 ? '2' : S.settings.jumpers ? '1j' : '1';
+    $$('.seg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.mode === mode)));
+    $$('[data-show]').forEach(b => b.setAttribute('aria-pressed', String(!!ui.show[b.dataset.show])));
+    if (foco && document.activeElement === document.body) {
+      const el = $(foco);
+      if (el) el.focus();
+    }
+  }
+  function bindA11y() {
+    // setas, Home e End trocam de aba (padrão de abas da WAI-ARIA)
+    const tabs = $$('.steps button');
+    $('.steps').addEventListener('keydown', e => {
+      const i = tabs.indexOf(document.activeElement);
+      if (i < 0) return;
+      const j = { ArrowRight: i + 1, ArrowLeft: i - 1, Home: 0, End: tabs.length - 1 }[e.key];
+      if (j === undefined) return;
+      e.preventDefault();
+      const t = tabs[(j + tabs.length) % tabs.length];
+      t.click();
+      t.focus();
+    });
+    $$('[data-show]').forEach(b => b.addEventListener('click', () => b.setAttribute('aria-pressed', String(!!ui.show[b.dataset.show]))));
+    // levar o foco a uma linha da lista seleciona o componente (alternativa ao clique na placa)
+    $('#comp-list').addEventListener('focusin', e => {
+      const row = e.target.closest('[data-row]');
+      if (!row || ui.sel === row.dataset.row) return;
+      ui.sel = row.dataset.row;
+      render();
+      $$('.comp-row').forEach(r => r.classList.toggle('sel', r.dataset.row === ui.sel));
+    });
+    // setas movem o componente selecionado um passo do encaixe (alternativa ao arrastar, WCAG 2.1.1 e 2.5.7)
+    document.addEventListener('keydown', e => {
+      const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
+      if (!d || !ui.sel || ui.step === 'conn') return;
+      const el = document.activeElement;
+      if (/INPUT|SELECT|TEXTAREA/.test(el.tagName) || el.getAttribute('role') === 'tab') return;
+      const c = S.components.find(c => c.id === ui.sel);
+      if (!c) return;
+      e.preventDefault();
+      const sn = S.settings.snap;
+      c.x = r3(c.x + d[0] * sn); c.y = r3(c.y + d[1] * sn);
+      changed();
+      flash(`${c.ref} em x ${fmt(c.x)} · y ${fmt(c.y)} mm`);
+    });
+  }
+
   // ------------------------------------------------------------------- início
   renderLibrary();
   bindBoard();
   bindPanel();
+  bindA11y(); // a11y
   render();
   window.addEventListener('resize', applyView);
 })();
